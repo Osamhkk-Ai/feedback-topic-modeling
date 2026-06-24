@@ -8,6 +8,7 @@
 # =====================================================================
 
 import os
+import json
 from src import llm_prompts
 
 
@@ -77,39 +78,71 @@ def _generate_valid(backend, payload, config):
     return llm_prompts.fallback_from_keywords(payload["keywords"], payload["samples"]), "fallback"
 
 
-def apply_naming(result, clean_df, embeddings, config, backend):
-    """Fill result.topic_names + result.topic_meta. Returns validated outputs."""
+def _build_output(tid, data, source):
+    return {
+        "topic_id": tid, "source": source,
+        "business_name": str(data.get("business_name", "")).strip(),
+        "description": str(data.get("description", "")).strip(),
+        "root_cause": str(data.get("root_cause", "")).strip(),
+        "severity": str(data.get("severity", "")).strip(),
+        "sentiment": str(data.get("sentiment", "")).strip(),
+        "recommended_actions": llm_prompts.normalize_actions(data.get("recommended_actions", [])),
+    }
+
+
+def _apply_output(result, out):
+    tid = out["topic_id"]
+    if out["business_name"]:
+        result.topic_names[tid] = out["business_name"]
+    acts = out["recommended_actions"]
+    result.topic_meta[tid] = {
+        "business_name": out["business_name"],
+        "description": out["description"],
+        "root_cause": out["root_cause"],
+        "severity": out["severity"],
+        "sentiment": out["sentiment"],
+        "recommended_actions": " | ".join(acts) if isinstance(acts, list) else acts,
+    }
+
+
+def apply_naming(result, clean_df, embeddings, config, backend, out_path=None):
+    """Analyze each topic with the LLM. Saves each result as it finishes
+    (out_path) and resumes by skipping topics already saved there."""
     payloads = llm_prompts.build_llm_inputs(result, clean_df, embeddings, config)
     total = len(payloads)
-    print(f"[llm] analyzing {total} topics (validate + retry + fallback)...")
+
+    # resume: load anything already saved and apply it first
+    done = {}
+    if out_path and os.path.exists(out_path):
+        try:
+            for o in json.load(open(out_path, encoding="utf-8")):
+                done[o["topic_id"]] = o
+        except Exception:
+            done = {}
 
     outputs = []
-    for i, pl in enumerate(payloads, 1):
+    for o in done.values():
+        _apply_output(result, o)
+        outputs.append(o)
+
+    remaining = [p for p in payloads if p["topic_id"] not in done]
+    if done:
+        print(f"[llm] resuming: {len(done)} done, {len(remaining)} remaining of {total}")
+    else:
+        print(f"[llm] analyzing {total} topics (validate + retry + fallback)...")
+
+    for pl in remaining:
         tid = pl["topic_id"]
         data, source = _generate_valid(backend, pl, config)
-
-        name = str(data.get("business_name", "")).strip()
-        if name:
-            result.topic_names[tid] = name
-        actions = llm_prompts.normalize_actions(data.get("recommended_actions", []))
-        result.topic_meta[tid] = {
-            "business_name": name,
-            "description": str(data.get("description", "")).strip(),
-            "root_cause": str(data.get("root_cause", "")).strip(),
-            "severity": str(data.get("severity", "")).strip(),
-            "sentiment": str(data.get("sentiment", "")).strip(),
-            "recommended_actions": " | ".join(actions),
-        }
-        outputs.append({
-            "topic_id": tid, "source": source, "business_name": name,
-            "description": result.topic_meta[tid]["description"],
-            "root_cause": result.topic_meta[tid]["root_cause"],
-            "severity": result.topic_meta[tid]["severity"],
-            "sentiment": result.topic_meta[tid]["sentiment"],
-            "recommended_actions": actions,
-        })
-        pct = int(100 * i / total)
-        print(f"  [{i}/{total} {pct:3d}%] topic {tid}: {name or '(unnamed)'}  [{source}]")
+        out = _build_output(tid, data, source)
+        _apply_output(result, out)
+        outputs.append(out)
+        if out_path:                      # incremental save -> crash-safe
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(outputs, f, ensure_ascii=False, indent=2)
+        pct = int(100 * len(outputs) / total)
+        print(f"  [{len(outputs)}/{total} {pct:3d}%] topic {tid}: "
+              f"{out['business_name'] or '(unnamed)'}  [{source}]")
     return outputs
 
 

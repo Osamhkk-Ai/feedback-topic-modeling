@@ -1,20 +1,25 @@
 # =====================================================================
 # run_pipeline.py  —  SINGLE entry point. Run:  python run_pipeline.py
 #
-#   load -> clean (keep originals + duplicates) -> embeddings -> UMAP
-#   -> HDBSCAN (auto params, KMeans fallback) -> topic quality check
-#   -> c-TF-IDF keywords -> representative comments -> local Qwen analysis
-#   (validate/retry/fallback) -> reports + charts + console summary
+#   load -> clean -> embeddings -> UMAP -> HDBSCAN (auto params)
+#   -> topic quality check -> c-TF-IDF keywords -> [SAVE pre-LLM results]
+#   -> local Qwen analysis (incremental + resumable) -> final report
 #
-# Works on CPU end-to-end (GPU used automatically if the CUDA build is
-# present). Edit settings in config.py — no need to touch the code.
+# Design: everything BEFORE the LLM is computed and SAVED to disk first.
+# The slow LLM stage then runs on the saved result and writes each topic
+# as it finishes. So if RAM fills or the LLM stops, the pre-LLM results
+# are kept and a re-run resumes without re-clustering or re-naming.
+#
+# Runs on CPU end-to-end (GPU used automatically if the CUDA build exists).
+# Edit settings in config.py — no need to touch the code.
 # =====================================================================
 
 import os
 import time
 
 import config
-from src import data_loader, cleaning, embeddings, evaluation, quality, reporting
+from src import (data_loader, cleaning, embeddings, evaluation, quality,
+                 reporting, checkpoint)
 from src.engine_sklearn import run as run_sklearn
 
 
@@ -49,6 +54,7 @@ def final_summary(stats, result, metrics, run_dir, seconds):
 def run():
     t0 = time.time()
     os.makedirs(config.CACHE_DIR, exist_ok=True)
+    run_dir = config.OUTPUT_DIR
     TOTAL = 6
 
     # 1) LOAD ----------------------------------------------------------
@@ -63,38 +69,51 @@ def run():
     if stats["n_after"] == 0:
         raise ValueError("Nothing left after cleaning. Check COMMENT_COLUMN / MIN_WORDS.")
     docs = clean_df["cleaned_text"].tolist()
+    sig = checkpoint.docs_signature(docs)
 
-    # 3) EMBED ---------------------------------------------------------
+    # 3) EMBED  (cached on disk) ---------------------------------------
     stage(3, TOTAL, f"Embeddings ({config.EMBEDDING}, CPU)")
     emb = embeddings.embed(docs, config)
 
-    # 4) CLUSTER -------------------------------------------------------
+    # 4) CLUSTER  (reuse checkpoint if the data is unchanged) ----------
     stage(4, TOTAL, "Cluster (UMAP -> HDBSCAN)")
-    result = run_sklearn(docs, emb, config, config.EMBEDDING)
-    metrics = evaluation.evaluate(result, emb, docs, config)
+    ck = checkpoint.load_result(sig, config)
+    if ck:
+        result, metrics, _ = ck
+        print("[checkpoint] reused saved pre-LLM result (skipped clustering)")
+    else:
+        result = run_sklearn(docs, emb, config, config.EMBEDDING)
+        metrics = evaluation.evaluate(result, emb, docs, config)
+        checkpoint.save_result(result, metrics, stats, sig, config)
 
-    # 5) QUALITY + LLM -------------------------------------------------
-    stage(5, TOTAL, "Topic quality check + local LLM analysis")
+    # 5) QUALITY + SAVE PRE-LLM RESULTS --------------------------------
+    stage(5, TOTAL, "Topic quality + SAVE pre-LLM results to disk")
     quality_df = quality.topic_quality_check(result, emb, clean_df, config)
+    reporting.write_run_outputs(run_dir, clean_df, result, metrics, stats, config,
+                                embeddings=emb, quality_df=quality_df, llm_outputs=None)
+    reporting.write_llm_inputs(run_dir, result, clean_df, emb, config)
+    print("[saved] pre-LLM results are on disk (kept even if the LLM stops)")
+
+    # 6) LLM ANALYSIS (incremental + resumable) + FINAL REPORT ---------
+    stage(6, TOTAL, "Local LLM analysis + final report")
     llm_outputs, exec_text = None, None
     if config.LLM_ENABLED:
         from src import naming
         backend = naming.load_backend(config)
         if backend:
-            llm_outputs = naming.apply_naming(result, clean_df, emb, config, backend)
+            llm_path = os.path.join(run_dir, "llm_output.json")
+            llm_outputs = naming.apply_naming(result, clean_df, emb, config, backend,
+                                              out_path=llm_path)
             exec_text = naming.executive_report(result, config, backend)
+            # re-write reports now WITH the business names/sentiment/severity
+            reporting.write_run_outputs(run_dir, clean_df, result, metrics, stats, config,
+                                        embeddings=emb, quality_df=quality_df,
+                                        llm_outputs=llm_outputs)
+            if exec_text:
+                with open(os.path.join(run_dir, "executive_summary.txt"), "w", encoding="utf-8") as f:
+                    f.write(exec_text)
 
-    # 6) EXPORT  (single flat folder, no duplication) -----------------
-    stage(6, TOTAL, "Reports + charts")
-    run_dir = config.OUTPUT_DIR
-    reporting.write_run_outputs(run_dir, clean_df, result, metrics, stats, config,
-                                embeddings=emb, quality_df=quality_df, llm_outputs=llm_outputs)
-    reporting.write_llm_inputs(run_dir, result, clean_df, emb, config)
-    if exec_text:
-        with open(os.path.join(run_dir, "executive_summary.txt"), "w", encoding="utf-8") as f:
-            f.write(exec_text)
     reporting.print_validation(clean_df, result, config, embeddings=emb)
-
     final_summary(stats, result, metrics, run_dir, time.time() - t0)
 
 
