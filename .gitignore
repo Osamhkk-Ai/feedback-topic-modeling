@@ -1,0 +1,34 @@
+# Editor / tooling
+.claude/
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Virtual env / build
+build/
+dist/
+*.egg-info/
+
+# Pipeline outputs (regenerated each run)
+outputs/
+
+# Local models you download yourself (large binaries)
+models/*.gguf
+models/*/
+!models/README.txt
+
+# Offline package cache
+offline_packages/
+
+# Your data (do not commit customer feedback)
+*.csv
+*.xlsx
+*.xls
+
+# Secrets (none used, kept just in case)
+*key*.txt
+.env

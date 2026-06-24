@@ -1,0 +1,40 @@
+# =====================================================================
+# Requirements — CPU-friendly, offline after first model download.
+# Python 3.11, Windows. Install into a dedicated virtual environment.
+#
+# INSTALL ORDER:
+#   1) CPU PyTorch (skip if you already have a working torch):
+#        pip install "torch==2.4.1" --index-url https://download.pytorch.org/whl/cpu
+#   2) pip install -r requirements.txt
+#   3) Local LLM runtime (pick one):
+#        CPU :  pip install llama-cpp-python
+#        GPU :  set CMAKE_ARGS=-DGGML_CUDA=on  &&  pip install llama-cpp-python --no-cache-dir
+#               (or a prebuilt CUDA wheel from the abetlen index)
+#
+# After the first run downloads the models, set HF_HUB_OFFLINE=1 to run
+# fully offline (or place models in ./models — see models/README.txt).
+# =====================================================================
+
+# --- scientific core (pinned: avoid numpy 2 / pandas 3 breakage) ---
+numpy==1.26.4
+scipy==1.13.1
+pandas==2.2.3
+scikit-learn==1.6.1
+
+# --- embeddings ---
+sentence-transformers==3.3.1
+transformers==4.46.3
+sentencepiece==0.2.0
+
+# --- dimensionality reduction (UMAP -> needs numba/llvmlite) ---
+umap-learn==0.5.7
+numba==0.60.0
+
+# --- reporting / charts ---
+openpyxl==3.1.5
+matplotlib==3.9.2
+pillow>=10
+tqdm>=4.66
+
+# --- local LLM (offline; install separately per the notes above) ---
+# llama-cpp-python>=0.3.0
