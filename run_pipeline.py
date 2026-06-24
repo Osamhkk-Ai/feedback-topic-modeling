@@ -84,9 +84,9 @@ def run():
             llm_outputs = naming.apply_naming(result, clean_df, emb, config, backend)
             exec_text = naming.executive_report(result, config, backend)
 
-    # 6) EXPORT --------------------------------------------------------
+    # 6) EXPORT  (single flat folder, no duplication) -----------------
     stage(6, TOTAL, "Reports + charts")
-    run_dir = os.path.join(config.OUTPUT_DIR, "run")
+    run_dir = config.OUTPUT_DIR
     reporting.write_run_outputs(run_dir, clean_df, result, metrics, stats, config,
                                 embeddings=emb, quality_df=quality_df, llm_outputs=llm_outputs)
     reporting.write_llm_inputs(run_dir, result, clean_df, emb, config)
@@ -94,7 +94,6 @@ def run():
         with open(os.path.join(run_dir, "executive_summary.txt"), "w", encoding="utf-8") as f:
             f.write(exec_text)
     reporting.print_validation(clean_df, result, config, embeddings=emb)
-    reporting.copy_to_root(run_dir, config)
 
     final_summary(stats, result, metrics, run_dir, time.time() - t0)
 

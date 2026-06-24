@@ -5,7 +5,6 @@
 
 import os
 import json
-import shutil
 import numpy as np
 import pandas as pd
 from openpyxl.drawing.image import Image as XLImage
@@ -215,17 +214,7 @@ def write_llm_inputs(run_dir, result, clean_df, embeddings, config):
     with open(os.path.join(run_dir, "llm_input.json"), "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
-    lines = ["هذا هو المُدخَل الذي يُرسَل للنموذج اللغوي لكل موضوع.\n"]
-    for it in items:
-        lines.append("=" * 70)
-        lines.append(f"topic_id={it['topic_id']} | size={it['topic_size']} "
-                     f"({it['topic_percentage']}%) | auto_name={it['auto_name']}")
-        lines.append("=" * 70)
-        lines.append(it["prompt"])
-        lines.append("")
-    with open(os.path.join(run_dir, "llm_input.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    print(f"[reporting] wrote LLM input preview -> {run_dir}\\llm_input.json (+ .txt)")
+    print(f"[reporting] wrote LLM input preview -> {run_dir}\\llm_input.json")
 
 
 # ---------------------------------------------------------------------
@@ -257,14 +246,3 @@ def print_validation(clean_df, result, config, embeddings=None):
     print()
 
 
-# ---------------------------------------------------------------------
-# Copy recommended run's deliverables to outputs/ root
-# ---------------------------------------------------------------------
-def copy_to_root(run_dir, config):
-    for fname in ["feedback_with_topics.csv", "topic_summary.csv", "topic_samples.csv",
-                  "noise_comments.csv", "topic_modeling_report.xlsx",
-                  "llm_input.json", "llm_output.json"]:
-        src_path = os.path.join(run_dir, fname)
-        if os.path.exists(src_path):
-            shutil.copy2(src_path, os.path.join(config.OUTPUT_DIR, fname))
-    print(f"[reporting] copied deliverables to {config.OUTPUT_DIR}/")
