@@ -25,13 +25,14 @@ MIN_WORDS = 3                               # drop comments shorter than this
 MODELS_DIR = "models"
 
 # Embedding model: a Hugging Face name (downloaded once) OR a local folder.
-EMBEDDING = "minilm"
+EMBEDDING = "e5large"           # full precision, no quantization
 EMBEDDING_MODELS = {
+    "e5large": "intfloat/multilingual-e5-large",     # best coverage in tests (1024-dim)
+    "e5base": "intfloat/multilingual-e5-base",       # lighter alternative
     "minilm": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    # "e5": "intfloat/multilingual-e5-base",   # optional alternative (needs query: prefix, handled in code)
 }
-EMBEDDING_LOCAL_DIR = ""        # e.g. "models/minilm" to load the embedder fully offline
-EMBED_BATCH_SIZE = 32           # lower to 16/8 if RAM is tight
+EMBEDDING_LOCAL_DIR = ""        # e.g. "models/e5large" to load the embedder fully offline
+EMBED_BATCH_SIZE = 16           # e5-large is heavier; 16 is RAM-safe on CPU (raise if you have headroom)
 
 # Local LLM (llama-cpp). Used ONLY per-topic (after clustering), never per row.
 LLM_ENABLED = True
