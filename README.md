@@ -31,21 +31,19 @@ pip install -r requirements.txt
 pip install llama-cpp-python
 ```
 
-**Option B — OFFLINE install (download once, install on the offline PC):**
+**Option B — OFFLINE install (wheels are ALREADY bundled in the repo):**
 
-On a PC WITH internet, download every package into a folder:
+All Windows/Python-3.11 wheels are committed under `offline\wheels\` (via
+Git LFS). After cloning, install with NO internet:
 ```cmd
-mkdir offline_packages
-pip download "torch==2.4.1" --index-url https://download.pytorch.org/whl/cpu -d offline_packages
-pip download -r requirements.txt -d offline_packages
-pip download llama-cpp-python -d offline_packages
+git lfs install
+git lfs pull
+pip install --no-index --find-links=offline\wheels "torch==2.4.1+cpu"
+pip install --no-index --find-links=offline\wheels -r requirements.txt
+pip install --no-index --find-links=offline\wheels llama-cpp-python
 ```
-Copy the `offline_packages` folder to the offline PC, then:
-```cmd
-pip install --no-index --find-links=offline_packages "torch==2.4.1"
-pip install --no-index --find-links=offline_packages -r requirements.txt
-pip install --no-index --find-links=offline_packages llama-cpp-python
-```
+(These wheels target Windows x64 + Python 3.11. The Qwen model is NOT
+bundled — see STEP 5.)
 
 ## STEP 3 — Put your data in the project folder
 
