@@ -63,7 +63,14 @@ COMMENT_COLUMN = "customer_feedback"
 
 ## STEP 5 — Put the model you downloaded yourself
 
-Download these two yourself and put them in the `models` folder:
+**Download the models manually from Hugging Face:**
+- Embedding (e5-large): **https://huggingface.co/intfloat/multilingual-e5-large**
+  (download the whole repo: `model.safetensors`, `config.json`, `tokenizer.json`,
+  `sentencepiece.bpe.model`, `modules.json`, etc.)
+- LLM (Qwen3-4B GGUF): **https://huggingface.co/Qwen/Qwen3-4B-GGUF**
+  (download just the file `Qwen3-4B-Q4_K_M.gguf`)
+
+Then put them in the `models` folder:
 
 1. **LLM (GGUF file)** — e.g. `Qwen3-4B-Q4_K_M.gguf`
    - Put it here:  `models\Qwen3-4B-Q4_K_M.gguf`
@@ -72,15 +79,40 @@ Download these two yourself and put them in the `models` folder:
      LLM_LOCAL_FILE = "models/Qwen3-4B-Q4_K_M.gguf"
      ```
 
-2. **Embedding model (folder)** — e.g. the MiniLM folder
-   - Put it here:  `models\minilm\`  (the folder with config.json, etc.)
+2. **Embedding model (folder)** — e.g. the e5-large folder
+   - Put it here:  `models\e5large\`  (the folder with `model.safetensors`,
+     `config.json`, `tokenizer.json`, `sentencepiece.bpe.model`, etc.)
    - In `config.py` set:
      ```python
-     EMBEDDING_LOCAL_DIR = "models/minilm"
+     EMBEDDING_LOCAL_DIR = "models/e5large"
      ```
 
 To swap a model later, just drop a different file/folder in `models\` and update that line.
 (`OFFLINE = True` is already set in `config.py`, so nothing ever goes online.)
+
+## Moving to a FULLY-OFFLINE machine (no internet at all)
+
+A machine with no internet can't `git clone` or download models. So copy
+everything by USB:
+
+1. On the online PC, the project folder already contains the wheels
+   (`offline\wheels\`). Also put the embedding model in `models\e5large\`.
+2. Copy the WHOLE project folder (code + `offline\wheels\` + `models\`) to USB
+   → paste it on the offline PC. (Qwen GGUF: place it in `models\` there too.)
+3. On the offline PC:
+   ```cmd
+   py -3.11 -m venv .venv
+   .venv\Scripts\activate.bat
+   pip install --no-index --find-links=offline\wheels "torch==2.4.1+cpu"
+   pip install --no-index --find-links=offline\wheels -r requirements.txt
+   pip install --no-index --find-links=offline\wheels llama-cpp-python
+   ```
+4. In `config.py` point to the local models:
+   ```python
+   EMBEDDING_LOCAL_DIR = "models/e5large"
+   LLM_LOCAL_FILE = "models/Qwen3-4B-Q4_K_M.gguf"
+   ```
+5. `python run_pipeline.py`  — runs with zero internet (`OFFLINE = True`).
 
 ## STEP 6 — Run
 
