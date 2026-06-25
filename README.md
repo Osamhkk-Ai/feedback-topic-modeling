@@ -14,10 +14,27 @@ CSV/Excel -> clean -> embeddings -> UMAP -> HDBSCAN -> quality check
 
 ---
 
+## STEP 0 — Get the project (IMPORTANT — read first)
+
+Download the offline bundle from the **Releases** page (it contains the
+REAL pip wheels):
+
+**https://github.com/Osamhkk-Ai/feedback-topic-modeling/releases**
+
+→ download the asset **`feedback-topic-modeling-offline.zip`** and unzip it,
+then copy the folder by USB to the offline machine.
+
+⚠️ Do **NOT** use the green **"Code → Download ZIP"** button (or `git clone`
+without Git LFS). That turns the wheels into tiny broken placeholder files
+and `pip` will report **"Wheel is invalid"**. Always use the **Release
+asset** above.
+
+---
+
 ## STEP 1 — Install the packages (OFFLINE, no venv)
 
-You already have the project folder (with `offline\wheels\`). Open **CMD**
-in the project folder and install straight from the bundled wheels:
+Open **CMD** in the project folder and install straight from the bundled
+wheels (no internet, no virtual environment):
 
 ```cmd
 cd "C:\path\to\feedback-topic-modeling"
